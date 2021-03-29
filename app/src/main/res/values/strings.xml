@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Stocks</string>
+    <string name="text_searchView">Find company or ticker</string>
+    <string name="stocks">Stocks</string>
+    <string name="favorite">Favorite</string>
+    <string name="ticker">Ticker</string>
+    <string name="company_name">Company name</string>
+    <string name="refresh">Refresh</string>
+</resources>
