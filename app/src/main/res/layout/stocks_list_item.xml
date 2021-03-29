@@ -12,7 +12,6 @@
         android:id="@+id/logo"
         android:layout_width="60dp"
         android:layout_height="60dp"
-        app:srcCompat="@drawable/microsoft"
         tools:ignore="ContentDescription" />
 
     <LinearLayout
