@@ -111,12 +111,9 @@ public class StocksApiClient {
     private void searchCompanies(final List<TickerResponse> tickers, final int countOfStocks, final Set<String> favorites) {
         for (int i = 0; i < countOfStocks && i < tickers.size(); i++) {
             final int finalI = i;
-            Log.v(TAG, "------------- " + i);
             MyService.getStocksApi().getCompany(tickers.get(i).getTicker(), MyService.API_KEY).enqueue(new Callback<CompanyResponse>() {
                 @Override
                 public void onResponse(Call<CompanyResponse> call, Response<CompanyResponse> response) {
-                    Log.v(TAG, "-------------------------- " + finalI);
-
                     try {
                         if (!isResponseOfCompanyEmpty(response.body())) {
                             CompanyModel company = new CompanyModel(response.body());
