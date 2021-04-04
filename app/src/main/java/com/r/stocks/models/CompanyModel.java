@@ -1,8 +1,7 @@
 package com.r.stocks.models;
 
-import android.graphics.Bitmap;
-
 import com.r.stocks.response.CompanyResponse;
+import com.r.stocks.response.PriceResponse;
 
 import java.io.Serializable;
 
@@ -14,29 +13,6 @@ public class CompanyModel implements Serializable {
     private double change;
     private double changePercent;
     private boolean isFavorite;
-    private Bitmap image;
-
-    public CompanyModel(String ticker, String name, String cur, double price, double change, double changePercent, boolean isFavorite, Bitmap image) {
-        this.ticker = ticker;
-        this.name = name;
-        this.cur = cur;
-        this.price = price;
-        this.change = change;
-        this.changePercent = changePercent;
-        this.isFavorite = isFavorite;
-        this.image = image;
-    }
-
-    public CompanyModel(CompanyResponse companyResponse, boolean isFavorite) {
-        ticker = companyResponse.getTicker();
-        name = companyResponse.getName();
-        cur = companyResponse.getCur();
-        price = companyResponse.getPrice();
-        change = companyResponse.getChange();
-        changePercent = companyResponse.getChangePercent();
-        this.isFavorite = isFavorite;
-        image = null;
-    }
 
     public CompanyModel(CompanyResponse companyResponse) {
         ticker = companyResponse.getTicker();
@@ -46,7 +22,6 @@ public class CompanyModel implements Serializable {
         change = companyResponse.getChange();
         changePercent = companyResponse.getChangePercent();
         isFavorite = false;
-        image = null;
     }
 
     public CompanyModel(CompanyModel companyModel) {
@@ -57,14 +32,9 @@ public class CompanyModel implements Serializable {
         change = companyModel.getChange();
         changePercent = companyModel.getChangePercent();
         isFavorite = companyModel.isFavorite();
-        image = companyModel.image;
     }
 
     public String getTicker() { return ticker; }
-
-    public Bitmap getImage() { return image; }
-
-    public void setImage(Bitmap image) { this.image = image; }
 
     public void setFavorite(boolean favorite){
         isFavorite = favorite;
@@ -94,6 +64,16 @@ public class CompanyModel implements Serializable {
         return isFavorite;
     }
 
+    public void setPrice(PriceResponse price) {
+        this.price = price.getCurrentPrice();
+        setChange(price.getCurrentPrice(), price.getPreviousPrice());
+    }
+
+    private void setChange(double currentPrice, double previousPrice) {
+        change = currentPrice - previousPrice;
+        changePercent = (currentPrice / previousPrice - 1) * 100;
+    }
+
     @Override
     public String toString() {
         return "CompanyModel{" +
@@ -104,7 +84,6 @@ public class CompanyModel implements Serializable {
                 ", change=" + change +
                 ", changePercent=" + changePercent +
                 ", isFavorite=" + isFavorite +
-                ", image=" + image +
                 '}';
     }
 }

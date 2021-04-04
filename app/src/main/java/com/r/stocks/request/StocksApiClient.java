@@ -8,35 +8,28 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
 import com.r.stocks.MyApplication;
-import com.r.stocks.models.AllCompanies;
 import com.r.stocks.models.CompanyModel;
 import com.r.stocks.response.CompanyResponse;
-import com.r.stocks.response.QuoteResponse;
-import com.r.stocks.utils.Status;
-
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import com.r.stocks.response.PriceResponse;
+import com.r.stocks.response.TickerResponse;
+import com.r.stocks.utils.ButtonStatus;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
 public class StocksApiClient {
 
-    private static final String TAG = "API";
-
-    private MutableLiveData<List<CompanyModel>> mCompanies;
+    private static final String TAG = "StocksAPI";
+    volatile private MutableLiveData<List<CompanyModel>> mCompanies;
     private MutableLiveData<List<CompanyModel>> mFavorites;
     private List<CompanyModel> cachedFavorites;
     private static StocksApiClient instance;
-
+    private ImagesApiClient imagesApiClient;
 
     public static StocksApiClient getInstance() {
         if (instance == null) {
@@ -54,6 +47,7 @@ public class StocksApiClient {
     private StocksApiClient() {
         mCompanies = new MutableLiveData<>();
         mFavorites = new MutableLiveData<>();
+        imagesApiClient = ImagesApiClient.getInstance();
     }
 
     public LiveData<List<CompanyModel>> getCompanies() {
@@ -71,7 +65,7 @@ public class StocksApiClient {
         } else {
             favorites.add(company);
         }
-        mFavorites.postValue(favorites);
+        mFavorites.setValue(favorites);
     }
 
     public void removeFavorite(CompanyModel company) {
@@ -93,171 +87,143 @@ public class StocksApiClient {
     }
 
     public void searchStocks(final int countOfStocks, final Set<String> favorites) {
-
-        MyService.getStocksApi().getAllQuotes(MyService.API_KEY).enqueue(new Callback<List<QuoteResponse>>() {
+        MyService.getStocksApi().getAllTickers(MyService.COUNTRY, MyService.INDEX, MyService.API_KEY).enqueue(new Callback<List<TickerResponse>>() {
             @Override
-            public void onResponse(Call<List<QuoteResponse>> call, Response<List<QuoteResponse>> response) {
+            public void onResponse(Call<List<TickerResponse>> call, Response<List<TickerResponse>> response) {
                 if (response.body() != null) {
-                    Log.v(TAG, "Get stocks:\n" + response.body().get(0).getAllStocks(countOfStocks));
-                    searchCompanies(response.body().get(0).getAllStocks(countOfStocks), favorites);
+                    List<TickerResponse> tmp = new ArrayList<>(response.body());
+                    Log.v(TAG, "Array = " + tmp.toString());
+                    searchCompanies(tmp, countOfStocks, favorites);
                 } else {
+                    Log.v(TAG, "Response of all tickers is null");
                     mCompanies.postValue(null);
                 }
             }
 
             @Override
-            public void onFailure(Call<List<QuoteResponse>> call, Throwable t) {
+            public void onFailure(Call<List<TickerResponse>> call, Throwable t) {
                 mCompanies.postValue(null);
+                Log.v(TAG, "Response of all tickers - FAIL");
             }
         });
     }
 
-    private void searchImages(final List<CompanyModel> companies, final Status status) {
-        for (final CompanyModel company : companies) {
-            final String file = MyApplication.getInstance().getExternalFilesDir(null) +
-                    File.separator + company.getTicker() + ".jpg";
-            if (!haveImage(file)) {
-                Call<ResponseBody> call = MyService.getImageApi().getImage(getNameOfImage(company.getName()));
+    private void searchCompanies(final List<TickerResponse> tickers, final int countOfStocks, final Set<String> favorites) {
+        for (int i = 0; i < countOfStocks && i < tickers.size(); i++) {
+            final int finalI = i;
+            Log.v(TAG, "------------- " + i);
+            MyService.getStocksApi().getCompany(tickers.get(i).getTicker(), MyService.API_KEY).enqueue(new Callback<CompanyResponse>() {
+                @Override
+                public void onResponse(Call<CompanyResponse> call, Response<CompanyResponse> response) {
+                    Log.v(TAG, "-------------------------- " + finalI);
 
-                call.enqueue((new Callback<ResponseBody>() {
-                    @Override
-                    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
-                        try {
-                            Log.v(TAG, "Response of image - OK");
-                            boolean FileDownloaded = DownloadImage(response.body(), company);
-                            Log.v(TAG, "Image is downloaded? - " + FileDownloaded + " company - " + company.getName());
-                            if (status == Status.ALL) {
-                                mCompanies.postValue(companies);
-                            } else {
-                                mFavorites.postValue(companies);
+                    try {
+                        if (!isResponseOfCompanyEmpty(response.body())) {
+                            CompanyModel company = new CompanyModel(response.body());
+                            if (favorites.contains(company.getTicker())) {
+                                company.setFavorite(true);
                             }
-                        } catch (Exception e) {
-                            Log.v(TAG, "Image exception");
-                            setDefaultImage(company);
-                            if (status == Status.ALL) {
-                                mCompanies.postValue(companies);
-                            } else {
-                                mFavorites.postValue(companies);
-                            }
-                            e.printStackTrace();
+                            searchPriceForCompany(company, ButtonStatus.ALL);
+                            imagesApiClient.searchImages(company);
                         }
+                    } catch (Exception e) {
+                        Log.v(TAG, "Conversion of response(companies) - FAIL");
                     }
+                }
 
-                    @Override
-                    public void onFailure(Call<ResponseBody> call, Throwable t) {
-                        Log.v(TAG, "Response of image - FAIL");
-                        setDefaultImage(company);
-                        if (status == Status.ALL) {
-                            mCompanies.postValue(companies);
-                        } else {
-                            mFavorites.postValue(companies);
-                        }
+                @Override
+                public void onFailure(Call<CompanyResponse> call, Throwable t) {
+                    Log.v(TAG, "Response of companies(companies) - FAIL");
+                    if (finalI == countOfStocks - 1 || finalI == tickers.size() - 1) {
+                        checkLastResponse();
                     }
-                }));
+                }
+            });
+        }
+    }
+
+    public void searchFavorites(Set<String> tickers) {
+        if (!MyApplication.hasNetwork()) {
+            mFavorites.setValue(cachedFavorites);
+            return;
+        }
+        Log.v(TAG, "After loading Favorites: " + tickers.toString());
+        for (String ticker : tickers) {
+            MyService.getStocksApi().getCompany(ticker, MyService.API_KEY).enqueue(new Callback<CompanyResponse>() {
+                @Override
+                public void onResponse(Call<CompanyResponse> call, Response<CompanyResponse> response) {
+                    try {
+                        Log.v(TAG, "Response of favorites - OK");
+                        if (!isResponseOfCompanyEmpty(response.body())) {
+                            CompanyModel company = new CompanyModel(response.body());
+                            company.setFavorite(true);
+                            searchPriceForCompany(company, ButtonStatus.FAVORITE);
+                        }
+                    } catch (Exception e) {
+                        Log.v(TAG, "Conversion of response(favorites) - FAIL");
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<CompanyResponse> call, Throwable t) {
+                    Log.v(TAG, "Response of companies(favorites) - FAIL");
+                }
+            });
+        }
+    }
+
+    private void searchPriceForCompany(final CompanyModel company, final ButtonStatus buttonStatus) {
+        if (company != null) {
+            MyService.getStocksApi().getPrice(company.getTicker(), MyService.API_KEY).enqueue(new Callback<PriceResponse>() {
+                @Override
+                public void onResponse(Call<PriceResponse> call, Response<PriceResponse> response) {
+                    try {
+                        Log.v(TAG, "Company = " + company.getTicker() + " have price " + response.body().getCurrentPrice() + company.getCur());
+                        company.setPrice(response.body());
+                        publishResults(company, buttonStatus);
+                    } catch (Exception e) {
+                        Log.v(TAG, "Conversion of response(price) - FAIL for " + company.getTicker());
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<PriceResponse> call, Throwable t) {
+                    Log.v(TAG, "Response of price - FAIL");
+                }
+            });
+        }
+    }
+
+    private boolean isResponseOfCompanyEmpty(CompanyResponse company) {
+        return company == null || company.getName() == null;
+    }
+
+    private void checkLastResponse() {
+        List<CompanyModel> currentCompanies = mCompanies.getValue();
+        if (currentCompanies == null) {
+            Log.v(TAG, "All requests were empty");
+            mCompanies.setValue(null);
+        }
+    }
+
+    public void publishResults(CompanyModel company, ButtonStatus buttonStatus) {
+        if (company.getPrice() != 0.0) {
+            List<CompanyModel> currentCompanies;
+            if (buttonStatus == ButtonStatus.ALL) {
+                currentCompanies = mCompanies.getValue();
             } else {
-                Bitmap image = BitmapFactory.decodeFile(file);
-                company.setImage(image);
-                if (status == Status.ALL) {
-                    mCompanies.postValue(companies);
-                } else {
-                    mFavorites.postValue(companies);
-                }
-                Log.v(TAG, "Image from cache, company - " + company.getName());
+                currentCompanies = mFavorites.getValue();
             }
+            if (currentCompanies == null) {
+                currentCompanies = new ArrayList<>();
+            }
+            currentCompanies.add(company);
+            if (buttonStatus == ButtonStatus.ALL) {
+                mCompanies.setValue(currentCompanies);
+            } else {
+                mFavorites.setValue(currentCompanies);
+            }
+            Log.v(TAG, company.getTicker() + " was added");
         }
-    }
-
-    private void setDefaultImage(CompanyModel company) {
-        int drawableID = MyApplication.getInstance().getResources().getIdentifier("not_stonks", "drawable", MyApplication.getInstance().getPackageName());
-        Bitmap image = BitmapFactory.decodeResource(MyApplication.getInstance().getResources(), drawableID);
-        company.setImage(image);
-    }
-
-    private boolean haveImage(String ticker) {
-        File file = new File(ticker);
-        return file.exists();
-    }
-
-    private String getNameOfImage(String name) {
-        String result = name.toLowerCase();
-
-        if (result.indexOf(',') != -1) {
-            result = result.substring(0, result.indexOf(','));
-        }
-        if (result.indexOf('.') != -1) {
-            result = result.substring(0, result.indexOf('.'));
-        }
-        if (result.indexOf(' ') != -1) {
-            result = result.substring(0, result.indexOf(' '));
-        }
-
-        return result;
-    }
-
-    private boolean DownloadImage(ResponseBody body, CompanyModel company) {
-        Log.v(TAG, "Downloading Image");
-
-        try (InputStream in = body.byteStream();
-             FileOutputStream out = new FileOutputStream(MyApplication.getInstance().getExternalFilesDir(null) +
-                     File.separator + company.getTicker() + ".jpg")) {
-            int c;
-            while ((c = in.read()) != -1) {
-                out.write(c);
-            }
-        } catch (IOException e) {
-            Log.v(TAG, "Downloading Image - FAIL");
-            return false;
-        }
-        Bitmap bMap = BitmapFactory.decodeFile(MyApplication.getInstance().getExternalFilesDir(null) +
-                File.separator + company.getTicker() + ".jpg");
-        company.setImage(bMap);
-        return true;
-    }
-
-    private void searchCompanies(String tickers, final Set<String> favorites) {
-        MyService.getStocksApi().getCompany(tickers, MyService.API_KEY).enqueue(new Callback<List<CompanyResponse>>() {
-            @Override
-            public void onResponse(Call<List<CompanyResponse>> call, Response<List<CompanyResponse>> response) {
-                try {
-                    Log.v(TAG, "Response of companies - OK");
-                    List<CompanyModel> companies = new AllCompanies(response.body(), favorites).getAllCompanies();
-
-                    mCompanies.postValue(companies);
-                    searchImages(companies, Status.ALL);
-                } catch (Exception e) {
-                    mCompanies.postValue(null);
-                    Log.v(TAG, "Conversion of response(companies) - FAIL");
-                }
-            }
-
-            @Override
-            public void onFailure(Call<List<CompanyResponse>> call, Throwable t) {
-                Log.v(TAG, "Response of companies(companies) - FAIL");
-                mCompanies.postValue(null);
-            }
-        });
-    }
-
-    public void searchFavorites(String tickers) {
-        MyService.getStocksApi().getCompany(tickers, MyService.API_KEY).enqueue(new Callback<List<CompanyResponse>>() {
-            @Override
-            public void onResponse(Call<List<CompanyResponse>> call, Response<List<CompanyResponse>> response) {
-                try {
-                    Log.v(TAG, "Response of favorites - OK");
-                    List<CompanyModel> companies = new AllCompanies(response.body(), true).getAllCompanies();
-                    mFavorites.postValue(companies);
-                    searchImages(companies, Status.FAVORITE);
-                } catch (Exception e) {
-                    Log.v(TAG, "Conversion of response(favorites) - FAIL");
-                    mFavorites.postValue(cachedFavorites);
-                }
-            }
-
-            @Override
-            public void onFailure(Call<List<CompanyResponse>> call, Throwable t) {
-                Log.v(TAG, "Response of companies(favorites) - FAIL");
-                mFavorites.postValue(cachedFavorites);
-            }
-        });
     }
 }

@@ -1,7 +1,5 @@
 package com.r.stocks.db;
 
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.util.Log;
 
 import com.r.stocks.MyApplication;
@@ -25,7 +23,6 @@ public class CacheFavorite {
 
     private static final String FILE_TICKERS = MyApplication.getInstance().getExternalCacheDir() + File.separator + "favorites.txt";
     private static final String FILE_STOCKS = MyApplication.getInstance().getExternalCacheDir() + File.separator + "stocks.txt";
-    private static final String FILE_IMAGE = MyApplication.getInstance().getExternalFilesDir(null) + File.separator;
     private static final String TAG = "Favorites";
 
     private static CacheFavorite instance;
@@ -69,20 +66,6 @@ public class CacheFavorite {
         return favorites;
     }
 
-    public String favoriteTickers() {
-        StringBuilder stringBuilder = new StringBuilder();
-        for (String ticker : favorites) {
-            if (!ticker.equals("")) {
-                stringBuilder.append(ticker).append(",");
-            }
-        }
-        if (stringBuilder.length() != 0) {
-            stringBuilder.deleteCharAt(stringBuilder.length() - 1);
-        }
-
-        return stringBuilder.toString();
-    }
-
     public void addToFavorite(CompanyModel company) {
         favorites.add(company.getTicker());
     }
@@ -115,7 +98,6 @@ public class CacheFavorite {
         try {
             FileOutputStream fos = new FileOutputStream(file);
             ObjectOutput objectOutputStream = new ObjectOutputStream(fos);
-            allFavorites.clearImage();
             objectOutputStream.writeObject(allFavorites);
             objectOutputStream.close();
             Log.v(TAG, "Favorites saved successfully");
@@ -134,7 +116,6 @@ public class CacheFavorite {
                 ObjectInputStream objectInputStream = new ObjectInputStream(fos);
                 stocks = (AllCompanies) objectInputStream.readObject();
                 Log.v(TAG, "File with favorites was read successfully");
-                loadImages(stocks.getAllCompanies());
                 objectInputStream.close();
                 fos.close();
                 return stocks.getAllCompanies();
@@ -146,23 +127,6 @@ public class CacheFavorite {
             Log.v(TAG, "File with favorites not found");
         }
         return null;
-    }
-
-    public void loadImages(List<CompanyModel> companies) {
-        if (companies != null) {
-            for (CompanyModel company : companies) {
-                File file = new File(FILE_IMAGE + company.getTicker() + ".jpg");
-                Bitmap image;
-                if (file.exists()) {
-                    image = BitmapFactory.decodeFile(file.toString());
-                } else {
-                    int drawableID = MyApplication.getInstance().getResources().getIdentifier("not_stonks", "drawable", MyApplication.getInstance().getPackageName());
-                    image = BitmapFactory.decodeResource(MyApplication.getInstance().getResources(), drawableID);
-                }
-                company.setImage(image);
-            }
-            Log.v(TAG, "Image upload completed");
-        }
     }
 
     public void removeFromFavorite(CompanyModel company) {

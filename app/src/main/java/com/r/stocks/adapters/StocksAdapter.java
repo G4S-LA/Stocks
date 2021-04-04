@@ -1,4 +1,4 @@
-package com.r.stocks.adapter;
+package com.r.stocks.adapters;
 
 import android.annotation.SuppressLint;
 import android.util.Log;
@@ -15,14 +15,19 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.r.stocks.R;
 import com.r.stocks.models.CompanyModel;
-import com.r.stocks.utils.Status;
+import com.r.stocks.utils.ButtonStatus;
+import com.squareup.picasso.Picasso;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.r.stocks.request.MyService.IMAGE_FOLDER;
+import static com.r.stocks.request.MyService.IMAGE_RESOLUTION;
+
 public class StocksAdapter extends RecyclerView.Adapter<StocksAdapter.StocksViewHolder> implements Filterable {
 
-    private Status status;
+    private ButtonStatus buttonStatus;
     private List<CompanyModel> listStocks;
     private List<CompanyModel> listStocksFull;
     private List<CompanyModel> listStocksFullFavorites;
@@ -30,11 +35,11 @@ public class StocksAdapter extends RecyclerView.Adapter<StocksAdapter.StocksView
 
     public StocksAdapter(OnStocksListener onStocksListener) {
         this.onStocksListener = onStocksListener;
-        status = Status.ALL;
+        buttonStatus = ButtonStatus.ALL;
     }
 
-    public void setStatus(Status status) {
-        this.status = status;
+    public void setButtonStatus(ButtonStatus buttonStatus) {
+        this.buttonStatus = buttonStatus;
         Log.v("Status", "Status was changed");
         changeListStocks();
         notifyDataSetChanged();
@@ -42,7 +47,7 @@ public class StocksAdapter extends RecyclerView.Adapter<StocksAdapter.StocksView
 
     public void setListStocks(List<CompanyModel> listStocksFull) {
         this.listStocksFull = listStocksFull;
-        if (status == Status.ALL) {
+        if (buttonStatus == ButtonStatus.ALL) {
             if (listStocks != null) {
                 listStocks.clear();
             }
@@ -53,7 +58,7 @@ public class StocksAdapter extends RecyclerView.Adapter<StocksAdapter.StocksView
 
     public void setListFavorites(List<CompanyModel> listStocksFullFavorites) {
         this.listStocksFullFavorites = listStocksFullFavorites;
-        if (status == Status.FAVORITE) {
+        if (buttonStatus == ButtonStatus.FAVORITE) {
             if (listStocks != null) {
                 listStocks.clear();
             }
@@ -66,9 +71,9 @@ public class StocksAdapter extends RecyclerView.Adapter<StocksAdapter.StocksView
         if (listStocks != null) {
             listStocks.clear();
         }
-        if (status == Status.FAVORITE && listStocksFullFavorites != null) {
+        if (buttonStatus == ButtonStatus.FAVORITE && listStocksFullFavorites != null) {
             listStocks = new ArrayList<>(listStocksFullFavorites);
-        } else if (status == Status.ALL && listStocksFull != null) {
+        } else if (buttonStatus == ButtonStatus.ALL && listStocksFull != null) {
             listStocks = new ArrayList<>(listStocksFull);
         }
     }
@@ -104,9 +109,10 @@ public class StocksAdapter extends RecyclerView.Adapter<StocksAdapter.StocksView
         } else {
             holder.star.setImageResource(android.R.drawable.btn_star_big_off);
         }
-        holder.logo.setImageBitmap(listStocks.get(position).getImage());
-
         holder.companyModel = listStocks.get(position);
+        Picasso.get()
+                .load(new File(IMAGE_FOLDER + holder.companyModel.getTicker() + IMAGE_RESOLUTION))
+                .into(holder.logo);
     }
 
     private int getColorOfChange(double value) {
@@ -157,6 +163,12 @@ public class StocksAdapter extends RecyclerView.Adapter<StocksAdapter.StocksView
             if (cur.equals("CAD")) {
                 return "C$";
             }
+            if (cur.equals("CNY")) {
+                return "¥";
+            }
+            if (cur.equals("THB")) {
+                return "฿";
+            }
         }
         return "?";
     }
@@ -184,14 +196,14 @@ public class StocksAdapter extends RecyclerView.Adapter<StocksAdapter.StocksView
         protected FilterResults performFiltering(CharSequence constraint) {
             List<CompanyModel> filteredList = new ArrayList<>();
             List<CompanyModel> allStocks;
-            if (status == Status.ALL) {
+            if (buttonStatus == ButtonStatus.ALL) {
                 allStocks = listStocksFull;
             } else {
                 allStocks = listStocksFullFavorites;
             }
 
             if (constraint == null || constraint.length() == 0) {
-                if (status == Status.FAVORITE) {
+                if (buttonStatus == ButtonStatus.FAVORITE) {
                     for (CompanyModel company : allStocks) {
                         if (company.isFavorite()) {
                             filteredList.add(company);
@@ -231,7 +243,7 @@ public class StocksAdapter extends RecyclerView.Adapter<StocksAdapter.StocksView
         OnStocksListener onStocksListener;
         CompanyModel companyModel;
 
-        public StocksViewHolder(@NonNull View itemView, OnStocksListener onStocksListener) {
+        public StocksViewHolder(@NonNull View itemView, final OnStocksListener onStocksListener) {
             super(itemView);
 
             price = itemView.findViewById(R.id.tv_price);
@@ -242,17 +254,31 @@ public class StocksAdapter extends RecyclerView.Adapter<StocksAdapter.StocksView
             logo = itemView.findViewById(R.id.logo);
             this.onStocksListener = onStocksListener;
 
-            itemView.setOnClickListener(this);
+            itemView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    onStocksListener.onStockClick(companyModel);
+                }
+            });
+            star.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    onStocksListener.onStarClick(companyModel);
+                }
+            });
         }
 
         @Override
         public void onClick(View v) {
             onStocksListener.onStockClick(companyModel);
+            onStocksListener.onStarClick(companyModel);
         }
     }
 
     public interface OnStocksListener {
         void onStockClick(CompanyModel companyModel);
+
+        void onStarClick(CompanyModel companyModel);
     }
 }
 

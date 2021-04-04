@@ -1,6 +1,6 @@
 package com.r.stocks.utils;
 
-public enum Status {
+public enum ButtonStatus {
     ALL,
     FAVORITE
 }

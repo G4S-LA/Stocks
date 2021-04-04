@@ -54,7 +54,7 @@ public class StocksRepository {
     }
 
     public void searchFavorites() {
-        stocksApiClient.searchFavorites(cacheFavorite.favoriteTickers());
+        stocksApiClient.searchFavorites(cacheFavorite.getFavoriteStocks());
     }
 
     public void addToFavorite(CompanyModel company) {

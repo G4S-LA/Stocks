@@ -5,8 +5,11 @@ import android.util.Log;
 
 import androidx.annotation.RequiresApi;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.r.stocks.MyApplication;
 import com.r.stocks.utils.ImageApi;
+import com.r.stocks.utils.NewsApi;
 import com.r.stocks.utils.StocksApi;
 
 import java.io.File;
@@ -23,9 +26,13 @@ import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
 public class MyService {
-    public static final String BASE_URL = "https://mboum.com/api/v1/";
-    public static final String BASE_IMAGE_URL = "https://logo.clearbit.com/"; // Так как в API акций нет картинок, некоторые позиции могут быть без логотипов
-    public static final String API_KEY = "SOW87wEeiv6gCHJnL9yPdQ3yFxEk2st2QQxJvzSkocJE32yOFaUfljmJz7Dh";
+    public static final String BASE_URL = "https://finnhub.io/api/";
+    public static final String API_KEY = "c1bgbhf48v6rcdqa0gag";
+    public static final String IMAGE_FOLDER = MyApplication.getInstance().getExternalFilesDir(null) + File.separator;
+    public static final String IMAGE_RESOLUTION = ".jpg";
+    public static final String COUNTRY = "US";
+    public static final String INDEX = "XNYS";
+
 
 
     public static final String HEADER_CACHE_CONTROL = "Cache-Control";
@@ -33,6 +40,11 @@ public class MyService {
     private static final String TAG = "Network";
 
     private static final long cacheSize = 5 * 1024 * 1024; // 5 MB
+
+    private static Gson gsonImage =
+            new GsonBuilder()
+                    .setLenient()
+                    .create();
 
     private static Retrofit.Builder retrofitBuilder =
             new Retrofit.Builder()
@@ -42,8 +54,8 @@ public class MyService {
 
     private static Retrofit.Builder retrofitImageBuilder =
             new Retrofit.Builder()
-                    .baseUrl(BASE_IMAGE_URL)
-                    .addConverterFactory(GsonConverterFactory.create());
+                    .baseUrl(BASE_URL)
+                    .addConverterFactory(GsonConverterFactory.create(gsonImage));
 
     private static Retrofit retrofit = retrofitBuilder.build();
 
@@ -53,12 +65,18 @@ public class MyService {
 
     private static ImageApi imageApi = retrofitImage.create(ImageApi.class);
 
+    private static NewsApi newsApi = retrofit.create(NewsApi.class);
+
     public static StocksApi getStocksApi() {
         return stocksApi;
     }
 
     public static ImageApi getImageApi() {
         return imageApi;
+    }
+
+    public static NewsApi getNewsApi() {
+        return newsApi;
     }
 
     private static OkHttpClient okHttpClient() {
@@ -73,11 +91,11 @@ public class MyService {
         return new Cache(new File(MyApplication.getInstance().getCacheDir(), "Stocks"), cacheSize);
     }
 
-    private static Interceptor networkInterceptor()     {
+    private static Interceptor networkInterceptor() {
         return new Interceptor() {
             @Override
             public Response intercept(Chain chain) throws IOException {
-                Log.v(TAG,"Network interceptor: called");
+                Log.v(TAG, "Network interceptor: called");
 
                 Response response = chain.proceed(chain.request());
 
@@ -102,9 +120,9 @@ public class MyService {
                 Log.v(TAG, "Offline interceptor called.");
                 Request request = chain.request();
 
-                if(!MyApplication.hasNetwork()) {
+                if (!MyApplication.hasNetwork()) {
                     CacheControl cacheControl = new CacheControl.Builder()
-                            .maxStale(6,TimeUnit.HOURS)
+                            .maxStale(6, TimeUnit.HOURS)
                             .build();
                     request = request.newBuilder()
                             .removeHeader(HEADER_PRAGMA)

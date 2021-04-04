@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
@@ -17,16 +18,18 @@ import android.widget.SearchView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.r.stocks.adapter.StocksAdapter;
-import com.r.stocks.utils.Status;
+
+import com.r.stocks.adapters.StocksAdapter;
+import com.r.stocks.utils.ButtonStatus;
 import com.r.stocks.models.CompanyModel;
+import com.r.stocks.utils.LoadingStatus;
 import com.r.stocks.viewmodels.StocksViewModel;
 
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements StocksAdapter.OnStocksListener {
 
-    private static final int countOfSearchingStocks = 30;
+    private static final int countOfSearchingStocks = 25; // В случае невалидных ответов итоговое кол-во акций будет меньше. Также я не до конца разобрался с многопоточностью, поэтому часть запросов акций тоже уходит в никуда(
     private RecyclerView recyclerView;
     private TextView stocks, favorite;
     private Button refresh;
@@ -34,8 +37,8 @@ public class MainActivity extends AppCompatActivity implements StocksAdapter.OnS
     private StocksViewModel stocksViewModel;
     private SearchView searchView;
     private ProgressBar progressBar;
-    private Status status;
-
+    private ButtonStatus buttonStatus;
+    private LoadingStatus loadingStatus;
 
     @Override
     protected void onCreate(final Bundle savedInstanceState) {
@@ -46,24 +49,25 @@ public class MainActivity extends AppCompatActivity implements StocksAdapter.OnS
 
         stocksViewModel = new ViewModelProvider(this).get(StocksViewModel.class);
 
-        ObserveAnyChange();
+        observeAnyChange();
 
         setAllListeners();
 
-        ConfigureRecycleView();
+        configureRecycleView();
 
         searchStocksApi();
-
     }
 
     private void registerComponents() {
-        status = Status.ALL;
+        buttonStatus = ButtonStatus.ALL;
         recyclerView = findViewById(R.id.rv_stocks);
         searchView = findViewById(R.id.search);
         progressBar = findViewById(R.id.progress_bar);
         stocks = findViewById(R.id.tv_stocks);
         favorite = findViewById(R.id.tv_favorites);
         refresh = findViewById(R.id.refresh);
+        loadingStatus = LoadingStatus.START;
+        buttonStatus = ButtonStatus.ALL;
     }
 
     private void setAllListeners() {
@@ -88,8 +92,11 @@ public class MainActivity extends AppCompatActivity implements StocksAdapter.OnS
             public void onClick(View v) {
                 stocks.setTextAppearance(R.style.Selected);
                 favorite.setTextAppearance(R.style.Default);
-                setStatus(Status.ALL);
-                if (stocksViewModel.getCompanies().getValue() == null) {
+                setButtonStatus(ButtonStatus.ALL);
+                if (loadingStatus == LoadingStatus.LOADING) {
+                    buttonRefreshOFF();
+                }
+                if (loadingStatus == LoadingStatus.START) {
                     buttonRefreshON();
                 }
             }
@@ -101,7 +108,7 @@ public class MainActivity extends AppCompatActivity implements StocksAdapter.OnS
             public void onClick(View v) {
                 stocks.setTextAppearance(R.style.Default);
                 favorite.setTextAppearance(R.style.Selected);
-                setStatus(Status.FAVORITE);
+                setButtonStatus(ButtonStatus.FAVORITE);
                 allOFF();
             }
         });
@@ -109,21 +116,20 @@ public class MainActivity extends AppCompatActivity implements StocksAdapter.OnS
         refresh.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (status == Status.ALL) {
+                if (buttonStatus == ButtonStatus.ALL) {
                     buttonRefreshOFF();
                 }
                 searchStocksApi();
             }
         });
-
     }
 
-    private void setStatus(Status status) {
-        this.status = status;
-        stocksAdapter.setStatus(status);
+    private void setButtonStatus(ButtonStatus buttonStatus) {
+        this.buttonStatus = buttonStatus;
+        stocksAdapter.setButtonStatus(buttonStatus);
     }
 
-    private void ObserveAnyChange() {
+    private void observeAnyChange() {
 
         stocksViewModel.getCompanies().observe(this, new Observer<List<CompanyModel>>() {
             @Override
@@ -131,9 +137,11 @@ public class MainActivity extends AppCompatActivity implements StocksAdapter.OnS
                 if (companies != null) {
                     allOFF();
                     stocksAdapter.setListStocks(companies);
+                    loadingStatus = LoadingStatus.FINISH;
                     Log.v("Stocks", "STOCKS has been updated");
                 } else {
-                    if (status == Status.ALL) {
+                    loadingStatus = LoadingStatus.START;
+                    if (buttonStatus == ButtonStatus.ALL) {
                         buttonRefreshON();
                     }
                     showToast("Something went wrong");
@@ -149,7 +157,7 @@ public class MainActivity extends AppCompatActivity implements StocksAdapter.OnS
                     stocksAdapter.setListFavorites(favorites);
                     Log.v("Favorites", "FAVORITE has been updated");
                 } else {
-                    if (status == Status.FAVORITE) {
+                    if (buttonStatus == ButtonStatus.FAVORITE) {
                         showToast("You haven't favorites yet");
                     }
                     Log.v("Favorites", "Favorite is null");
@@ -159,8 +167,11 @@ public class MainActivity extends AppCompatActivity implements StocksAdapter.OnS
     }
 
     private void searchStocksApi() {
+
         stocksViewModel.searchStocks(countOfSearchingStocks);
         stocksViewModel.searchFavorites();
+
+        loadingStatus = LoadingStatus.LOADING;
     }
 
     private void buttonRefreshON() {
@@ -178,7 +189,7 @@ public class MainActivity extends AppCompatActivity implements StocksAdapter.OnS
         progressBar.setVisibility(ProgressBar.INVISIBLE);
     }
 
-    private void ConfigureRecycleView() {
+    private void configureRecycleView() {
         stocksAdapter = new StocksAdapter(this);
 
         recyclerView.setAdapter(stocksAdapter);
@@ -191,12 +202,20 @@ public class MainActivity extends AppCompatActivity implements StocksAdapter.OnS
 
     @Override
     public void onStockClick(CompanyModel company) {
-        if (!company.isFavorite() && status == Status.ALL) {
+        Intent intent = new Intent(this, NewsActivity.class);
+        intent.putExtra("ticker", company.getTicker());
+        intent.putExtra("name", company.getName());
+        this.startActivity(intent);
+    }
+
+    @Override
+    public void onStarClick(CompanyModel company) {
+        if (!company.isFavorite() && buttonStatus == ButtonStatus.ALL) {
             showToast(company.getTicker() + " added to Favorite");
             company.setFavorite(true);
             stocksViewModel.addToFavorite(company);
             stocksAdapter.notifyDataSetChanged();
-        } else if (company.isFavorite() && status == Status.FAVORITE){
+        } else if (company.isFavorite() && buttonStatus == ButtonStatus.FAVORITE) {
             showToast(company.getTicker() + " removed from Favorite");
             company.setFavorite(false);
             stocksViewModel.removeFromFavorite(company);
