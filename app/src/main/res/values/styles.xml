@@ -24,4 +24,9 @@
         <item name="colorAccent">#000000</item>
     </style>
 
+    <style name="roundImageView" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">20dp</item>
+    </style>
+
 </resources>
