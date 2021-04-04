@@ -12,7 +12,7 @@
 
 ![](https://github.com/G4S-LA/pictures/blob/master/Stocks/AddToFavorite.jpg)
 
-## :star: Вкладка Favorites
+## :star: Вкладка Favorite
 
 ![](https://github.com/G4S-LA/pictures/blob/master/Stocks/Favorite.jpg)
 
@@ -20,7 +20,7 @@
 
 Просто нажмите на звездочку
 
-![] (https://github.com/G4S-LA/pictures/blob/master/Stocks/RemoveFromFavorite.jpg)
+![](https://github.com/G4S-LA/pictures/blob/master/Stocks/RemoveFromFavorite.jpg)
 
 ## :mag: Поиск акции
 
